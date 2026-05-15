@@ -1,0 +1,71 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gitlab-repo-audit"
+version = "0.1.0"
+description = "Audit and inventory GitLab repositories for migration planning"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Ken Dreyer", email = "kdreyer@redhat.com"},
+]
+dependencies = [
+    "click>=8.1.0",
+    "jinja2>=3.1.0",
+    "python-gitlab>=4.0.0",
+    "pydantic>=2.0.0",
+    "plotly>=5.0.0",
+    "tqdm>=4.0.0",
+]
+
+[project.scripts]
+gitlab-repo-audit = "gitlab_repo_audit.cli:cli"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gitlab_repo_audit"]
+
+[tool.hatch.envs.default]
+python = "3.12"
+dependencies = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+
+[tool.hatch.envs.default.scripts]
+test = "pytest {args:tests}"
+test-cov = "pytest --cov=gitlab_repo_audit {args:tests}"
+lint = "ruff check {args:src tests}"
+format = "ruff format {args:src tests}"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "UP"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["gitlab_repo_audit"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+check_untyped_defs = true

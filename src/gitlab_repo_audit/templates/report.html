@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GitLab Repo Audit Report</title>
+<link rel="stylesheet" href="https://unpkg.com/@patternfly/patternfly@6/patternfly.css">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+html { background: var(--pf-t--global--background--color--primary--default); }
+body { margin: 0; padding: 24px; font-family: var(--pf-t--global--font--family--body); }
+.report-container { max-width: 1400px; margin: 0 auto; }
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+  margin: 24px 0;
+}
+.stat-card { text-align: center; }
+.stat-number {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--pf-t--global--text--color--regular);
+}
+.stat-label {
+  font-size: 0.875rem;
+  color: var(--pf-t--global--text--color--subtle);
+  margin-top: 4px;
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 24px 0;
+}
+.chart-full { grid-column: 1 / -1; }
+.pf-v6-c-card__body { overflow: hidden; }
+
+.pf-v6-c-table { margin-top: 16px; }
+.pf-v6-c-table th[data-sortable] { cursor: pointer; user-select: none; }
+.pf-v6-c-table th[data-sortable]:hover { opacity: 0.8; }
+tr.archived td { opacity: 0.5; }
+tr.stale td { color: var(--pf-t--global--color--status--danger--default); }
+
+.generated {
+  color: var(--pf-t--global--text--color--subtle);
+  margin-top: 48px;
+  font-size: 0.875rem;
+}
+
+@media (max-width: 900px) {
+  .stat-grid { grid-template-columns: repeat(3, 1fr); }
+  .chart-grid { grid-template-columns: 1fr; }
+  .chart-full { grid-column: auto; }
+}
+</style>
+</head>
+<body>
+<div class="report-container">
+
+<div class="pf-v6-c-content">
+  <h1>GitLab Repo Audit Report</h1>
+</div>
+
+<div class="stat-grid">
+  {% for stat in stats %}
+  <div class="pf-v6-c-card pf-m-compact stat-card">
+    <div class="pf-v6-c-card__body">
+      <div class="stat-number">{{ stat.value }}</div>
+      <div class="stat-label">{{ stat.label }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="chart-grid">
+  {% for chart in charts %}
+  <div class="pf-v6-c-card {{ 'chart-full' if chart.full_width else '' }}">
+    <div class="pf-v6-c-card__body">{{ chart.html | safe }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="pf-v6-c-content" style="margin-top: 24px;">
+  <h2>Repository Details</h2>
+</div>
+
+<table class="pf-v6-c-table pf-m-compact" id="repo-table">
+<thead>
+<tr>
+  {% for col in columns %}
+  <th {% if col.sortable %}data-sortable onclick="sortTable({{ loop.index0 }})"{% endif %}>{{ col.label }}</th>
+  {% endfor %}
+</tr>
+</thead>
+<tbody>
+{% for row in rows %}
+<tr class="{{ row.css_class }}">
+  <td><a href="{{ row.web_url }}">{{ row.name }}</a></td>
+  <td>{{ row.visibility }}</td>
+  <td data-sort="{{ row.last_activity_sort }}">{{ row.last_activity }}</td>
+  <td data-sort="{{ row.last_commit_sort }}">{{ row.last_commit }}</td>
+  <td>{{ row.open_mr_count }}</td>
+  <td>{{ row.mrs_90d }}</td>
+  <td>{{ row.ci }}</td>
+  <td>{{ row.language }}</td>
+  <td>{{ row.repo_size_kb }}</td>
+  <td>{{ row.contributors_90d }}</td>
+  <td>{{ row.repo_type }}</td>
+  <td>{{ row.disposition }}</td>
+  <td>{{ row.destination_org }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+
+<script>
+function sortTable(col) {
+  const table = document.getElementById("repo-table");
+  const tbody = table.tBodies[0];
+  const rows = Array.from(tbody.rows);
+  const dir = table.dataset.sortCol == col && table.dataset.sortDir == "asc" ? "desc" : "asc";
+  table.dataset.sortCol = col;
+  table.dataset.sortDir = dir;
+  rows.sort((a, b) => {
+    let va = a.cells[col].dataset.sort || a.cells[col].textContent;
+    let vb = b.cells[col].dataset.sort || b.cells[col].textContent;
+    const na = parseFloat(va), nb = parseFloat(vb);
+    if (!isNaN(na) && !isNaN(nb)) return dir === "asc" ? na - nb : nb - na;
+    return dir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
+  });
+  rows.forEach(r => tbody.appendChild(r));
+}
+</script>
+
+<p class="generated">Generated {{ generated_at }} by gitlab-repo-audit</p>
+
+</div>
+</body>
+</html>
