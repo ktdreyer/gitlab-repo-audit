@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Index GitLab repositories and generate reports for migration planning. Built to support the AIPCC GitLab-to-GitHub migration (AIPCC-15934), starting with the `redhat/rhel-ai/ci-cd` namespace and scaling to all ~2000 repos under `redhat/rhel-ai/*`.
+Index GitLab repositories and generate reports for migration planning. Built to support the AIPCC-15934, starting with the `redhat/rhel-ai/ci-cd` namespace and scaling to all ~2000 repos under `redhat/rhel-ai/*`.
 
 ## CLI
 
