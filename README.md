@@ -1,3 +1,5 @@
+*Warning: lightly read, heavily AI generated.*
+
 # GitLab Repo Audit
 
 A command-line tool to inventory and audit GitLab repositories for migration planning. Indexes repo metadata into SQLite and generates HTML reports with interactive Plotly charts.
