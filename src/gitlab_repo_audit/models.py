@@ -28,6 +28,7 @@ class RepoData(BaseModel):
     contributors_last_90d: int | None = None
     is_package_index: bool = False
     package_count: int = 0
+    repo_type: str = "code"
     group_path: str = ""
     indexed_at: datetime = Field(default_factory=datetime.utcnow)
 

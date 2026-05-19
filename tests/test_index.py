@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
-from gitlab_repo_audit.index import index_project
+from gitlab_repo_audit.index import classify_repo_type, enrich_project
 from gitlab_repo_audit.models import MergeRequestData, RepoData
 
 
@@ -73,7 +73,7 @@ def test_index_project(mock_get_project):
     stub = MagicMock()
     stub.id = 42
 
-    repo, mrs = index_project(gl, stub, "group")
+    repo, mrs = enrich_project(gl, stub, "group")
 
     assert isinstance(repo, RepoData)
     assert repo.project_id == 42
@@ -113,6 +113,30 @@ def test_index_project_package_index(mock_get_project):
     stub = MagicMock()
     stub.id = 42
 
-    repo, mrs = index_project(gl, stub, "group")
+    repo, mrs = enrich_project(gl, stub, "group")
     assert repo.is_package_index is True
     assert repo.package_count == 50
+
+
+def test_classify_repo_type_code():
+    assert classify_repo_type("redhat/rhel-ai/core/some-tool", False) == "code"
+
+
+def test_classify_repo_type_archived():
+    assert classify_repo_type("redhat/rhel-ai/core/some-tool", True) == "archived"
+
+
+def test_classify_repo_type_pypi_index():
+    assert classify_repo_type("redhat/rhel-ai/rhai/indexes/vllm-2.20/cuda-ubi9-x86_64", False) == "pypi_index"
+
+
+def test_classify_repo_type_wheel_cache():
+    assert classify_repo_type("redhat/rhel-ai/core/wheels/torch-2.11/cuda-ubi9-x86_64", False) == "wheel_cache"
+
+
+def test_classify_repo_type_mirror():
+    assert classify_repo_type("redhat/rhel-ai/core/mirrors/github/pytorch/pytorch", False) == "mirror"
+
+
+def test_classify_repo_type_archived_overrides_path():
+    assert classify_repo_type("redhat/rhel-ai/rhai/indexes/old-thing", True) == "archived"

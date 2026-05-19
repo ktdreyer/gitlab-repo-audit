@@ -13,9 +13,58 @@ from .retry import retry_on_error
 logger = logging.getLogger(__name__)
 
 
+def classify_repo_type(path: str, archived: bool) -> str:
+    """Classify a repo by its path and archived status."""
+    segments = path.split("/")
+    if archived:
+        return "archived"
+    if "indexes" in segments:
+        return "pypi_index"
+    if "wheels" in segments:
+        return "wheel_cache"
+    if "mirrors" in segments:
+        return "mirror"
+    return "code"
+
+
+def _stub_to_repo(
+    stub: gitlab.v4.objects.GroupProject, group_path: str
+) -> RepoData:
+    """Convert a group project stub to a RepoData without extra API calls."""
+    last_activity = None
+    if stub.last_activity_at:
+        last_activity = datetime.fromisoformat(stub.last_activity_at)
+
+    path = stub.path_with_namespace
+
+    return RepoData(
+        project_id=stub.id,
+        name=stub.name,
+        path=path,
+        web_url=stub.web_url,
+        description=stub.description,
+        visibility=stub.visibility,
+        archived=stub.archived,
+        default_branch=getattr(stub, "default_branch", None),
+        last_activity_at=last_activity,
+        topics=getattr(stub, "topics", []) or [],
+        star_count=getattr(stub, "star_count", 0),
+        forks_count=getattr(stub, "forks_count", 0),
+        repo_type=classify_repo_type(path, stub.archived),
+        group_path=group_path,
+        indexed_at=datetime.now(timezone.utc),
+    )
+
+
 @retry_on_error()
 def _get_project(gl: gitlab.Gitlab, project_id: int) -> gitlab.v4.objects.Project:
-    return gl.projects.get(project_id, statistics=True)
+    try:
+        return gl.projects.get(project_id, statistics=True)
+    except gitlab.exceptions.GitlabGetError as e:
+        if e.response_code == 403:
+            logger.debug("statistics=True denied for project %d, retrying without", project_id)
+            return gl.projects.get(project_id)
+        raise
 
 
 @retry_on_error()
@@ -107,11 +156,11 @@ def _check_is_package_index(project: gitlab.v4.objects.Project) -> bool:
     return len(source_files) == 0
 
 
-def index_project(
-    gl: gitlab.Gitlab, project_stub: gitlab.v4.objects.GroupProject, group_path: str
+def enrich_project(
+    gl: gitlab.Gitlab, stub: gitlab.v4.objects.GroupProject, group_path: str
 ) -> tuple[RepoData, list[MergeRequestData]]:
-    """Collect all metadata for a single project."""
-    project = _get_project(gl, project_stub.id)
+    """Collect full metadata for a single project via per-project API calls."""
+    project = _get_project(gl, stub.id)
     stats = getattr(project, "statistics", None) or {}
 
     last_activity = None
@@ -127,10 +176,12 @@ def index_project(
     pkg_count = _get_package_count(project)
     is_pkg_index = _check_is_package_index(project) if pkg_count > 0 else False
 
+    path = project.path_with_namespace
+
     repo = RepoData(
         project_id=project.id,
         name=project.name,
-        path=project.path_with_namespace,
+        path=path,
         web_url=project.web_url,
         description=project.description,
         visibility=project.visibility,
@@ -148,6 +199,7 @@ def index_project(
         contributors_last_90d=contributors,
         is_package_index=is_pkg_index,
         package_count=pkg_count,
+        repo_type=classify_repo_type(path, project.archived),
         group_path=group_path,
         indexed_at=datetime.now(timezone.utc),
     )
@@ -159,8 +211,14 @@ def index_group(
     group_path: str,
     max_workers: int = 5,
     quiet: bool = False,
+    quick: bool = False,
 ) -> list[tuple[RepoData, list[MergeRequestData]]]:
-    """Index all projects in a GitLab group recursively."""
+    """Index all projects in a GitLab group recursively.
+
+    When quick=True, only stub data from the group listing is used (no
+    per-project API calls).  This is much faster but omits enrichment
+    fields like languages, CI config, and contributor counts.
+    """
     group = gl.groups.get(group_path)
     all_stubs = group.projects.list(get_all=True, include_subgroups=True)
     project_stubs = [s for s in all_stubs if "deletion_scheduled" not in s.name]
@@ -171,12 +229,16 @@ def index_group(
         if skipped:
             logger.info("Skipped %d project(s) pending deletion", skipped)
 
+    if quick:
+        results = [(_stub_to_repo(s, group_path), []) for s in project_stubs]
+        return results
+
     results: list[tuple[RepoData, list[MergeRequestData]]] = []
     errors: list[tuple[str, Exception]] = []
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(index_project, gl, stub, group_path): stub
+            executor.submit(enrich_project, gl, stub, group_path): stub
             for stub in project_stubs
         }
         with tqdm(

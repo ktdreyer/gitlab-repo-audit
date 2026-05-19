@@ -86,12 +86,17 @@ def _top_language(repo: RepoRecord) -> str:
     return max(repo.languages, key=repo.languages.get)  # type: ignore[arg-type]
 
 
-def _repo_type(repo: RepoRecord) -> str:
-    if repo.archived:
-        return "Archived"
-    if repo.is_package_index:
-        return "Package index"
-    return "Active code"
+REPO_TYPE_LABELS = {
+    "code": "Code",
+    "pypi_index": "PyPI index",
+    "wheel_cache": "Wheel cache",
+    "mirror": "Mirror",
+    "archived": "Archived",
+}
+
+
+def _repo_type_label(repo: RepoRecord) -> str:
+    return REPO_TYPE_LABELS.get(repo.repo_type, repo.repo_type)
 
 
 def _mr_count_since(mrs: list[MergeRequestData], days: int) -> int:
@@ -120,9 +125,10 @@ def _build_charts(
 
     charts = []
 
-    # Staleness distribution
+    # Staleness distribution (code repos only)
+    code_repos = [r for r in repos if r.repo_type == "code"]
     buckets = {"< 30 days": 0, "30–90 days": 0, "90 days – 1 year": 0, "> 1 year": 0, "Unknown": 0}
-    for r in repos:
+    for r in code_repos:
         buckets[_staleness_bucket(_days_since(r.last_activity_at))] += 1
 
     fig = go.Figure(data=[go.Bar(
@@ -130,19 +136,36 @@ def _build_charts(
         marker_color=[rh_green, rh_orange, "#ec7a08", rh_red, rh_gray],
     )])
     fig.update_layout(
-        title="Last Activity Distribution", xaxis_title="Time since last activity",
+        title="Last Activity Distribution (code repos only)", xaxis_title="Time since last activity",
         yaxis_title="Number of repos", height=350, margin=dict(t=40, b=40, l=50, r=20), **dark_layout,
+    )
+    fig.add_annotation(
+        text="GitLab's last_activity_at counts any activity including bot pushes<br>"
+             "to package registries, CI pipelines, and mirror syncs.<br>"
+             "This chart is scoped to code repos to filter out that noise.",
+        xref="paper", yref="paper", x=0.5, y=-0.25,
+        showarrow=False, font=dict(size=11, color=rh_gray),
     )
     charts.append({"html": fig.to_html(full_html=False, include_plotlyjs=False), "full_width": False})
 
     # Repo type breakdown
-    type_counts = {"Active code": 0, "Package index": 0, "Archived": 0}
+    type_counts = {label: 0 for label in REPO_TYPE_LABELS.values()}
     for r in repos:
-        type_counts[_repo_type(r)] += 1
+        type_counts[_repo_type_label(r)] += 1
+    type_counts = {k: v for k, v in type_counts.items() if v > 0}
+
+    type_colors = {
+        "Code": rh_blue,
+        "PyPI index": rh_purple,
+        "Wheel cache": rh_orange,
+        "Mirror": rh_green,
+        "Archived": rh_gray,
+    }
 
     fig = go.Figure(data=[go.Pie(
         labels=list(type_counts.keys()), values=list(type_counts.values()),
-        marker_colors=[rh_blue, rh_purple, rh_gray], hole=0.4,
+        marker_colors=[type_colors.get(k, rh_gray) for k in type_counts],
+        hole=0.4,
     )])
     fig.update_layout(title="Repository Types", height=350, margin=dict(t=40, b=20, l=20, r=20), **dark_layout)
     charts.append({"html": fig.to_html(full_html=False, include_plotlyjs=False), "full_width": False})
@@ -211,13 +234,13 @@ def _build_rows(
             "last_activity_sort": r.last_activity_at.isoformat() if r.last_activity_at else "",
             "last_commit": r.last_commit_date.strftime("%Y-%m-%d") if r.last_commit_date else "—",
             "last_commit_sort": r.last_commit_date.isoformat() if r.last_commit_date else "",
-            "open_mr_count": r.open_mr_count or 0,
+            "open_mr_count": r.open_mr_count if r.open_mr_count is not None else "—",
             "mrs_90d": _mr_count_since(mrs_by_repo.get(r.project_id, []), 90),
-            "ci": "Yes" if r.ci_config_present else "No" if r.ci_config_present is not None else "—",
+            "ci": "Yes" if r.ci_config_present else ("No" if r.ci_config_present is not None else "—"),
             "language": _top_language(r),
             "repo_size_kb": r.repo_size_kb or "—",
-            "contributors_90d": r.contributors_last_90d or 0,
-            "repo_type": _repo_type(r),
+            "contributors_90d": r.contributors_last_90d if r.contributors_last_90d is not None else "—",
+            "repo_type": _repo_type_label(r),
             "disposition": r.disposition or "",
             "destination_org": r.destination_org or "",
         })
@@ -251,12 +274,13 @@ def generate_html(
         mrs_by_repo = {}
     now = datetime.now(timezone.utc)
 
+    code_repos = [r for r in repos if r.repo_type == "code"]
     stats = [
         {"value": len(repos), "label": "Total repos"},
-        {"value": sum(1 for r in repos if _days_since(r.last_activity_at) is not None and _days_since(r.last_activity_at) < 90), "label": "Active (90d)"},  # type: ignore[operator]
-        {"value": sum(1 for r in repos if _days_since(r.last_activity_at) is not None and _days_since(r.last_activity_at) >= 365), "label": "Stale (>1y)"},  # type: ignore[operator]
+        {"value": len(code_repos), "label": "Code repos"},
+        {"value": sum(1 for r in code_repos if _days_since(r.last_activity_at) is not None and _days_since(r.last_activity_at) < 90), "label": "Active code (90d)"},  # type: ignore[operator]
+        {"value": sum(1 for r in code_repos if _days_since(r.last_activity_at) is not None and _days_since(r.last_activity_at) >= 365), "label": "Stale code (>1y)"},  # type: ignore[operator]
         {"value": sum(1 for r in repos if r.archived), "label": "Archived"},
-        {"value": sum(1 for r in repos if r.is_package_index and not r.archived), "label": "Package indexes"},
         {"value": sum(_mr_count_since(mrs_by_repo.get(r.project_id, []), 90) for r in repos), "label": "MRs (90d)"},
     ]
 

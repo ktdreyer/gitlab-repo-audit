@@ -56,6 +56,7 @@ def cli() -> None:
 @click.option("--workers", "-w", type=int, default=5, show_default=True, help="Parallel workers for API calls")
 @click.option("--verbose", "-v", is_flag=True, help="Debug output")
 @click.option("--quiet", "-q", is_flag=True, help="Quiet mode")
+@click.option("--quick", is_flag=True, help="Fast stub-only index (skip per-project API calls)")
 def index(
     group_path: str,
     token: str | None,
@@ -64,6 +65,7 @@ def index(
     workers: int,
     verbose: bool,
     quiet: bool,
+    quick: bool,
 ) -> None:
     """Index all repositories in a GitLab group into SQLite.
 
@@ -74,6 +76,7 @@ def index(
     Examples:
         gitlab-repo-audit index redhat/rhel-ai/ci-cd
         gitlab-repo-audit index redhat/rhel-ai --workers 10
+        gitlab-repo-audit index redhat/rhel-ai --quick
     """
     try:
         configure_logging(verbose, quiet)
@@ -87,7 +90,7 @@ def index(
         start = time.monotonic()
 
         group_path = group_path.strip("/")
-        results = index_group(gl, group_path, max_workers=workers, quiet=quiet)
+        results = index_group(gl, group_path, max_workers=workers, quiet=quiet, quick=quick)
 
         for repo, mrs in results:
             db.upsert(repo)

@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS repos (
     contributors_last_90d INTEGER,
     is_package_index INTEGER DEFAULT 0,
     package_count INTEGER DEFAULT 0,
+    repo_type TEXT DEFAULT 'code',
     group_path TEXT NOT NULL,
     indexed_at TEXT NOT NULL,
     disposition TEXT,
@@ -75,6 +76,7 @@ API_COLUMNS = [
     "contributors_last_90d",
     "is_package_index",
     "package_count",
+    "repo_type",
     "group_path",
     "indexed_at",
 ]
