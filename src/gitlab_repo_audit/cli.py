@@ -164,7 +164,8 @@ def report(
         if not quiet:
             click.echo(f"CSV report written to {output} ({len(repos)} repos)", err=True)
     else:
-        html = generate_html(repos, mrs_by_repo=mrs_by_repo)
+        quick = all(r.ci_config_present is None for r in repos)
+        html = generate_html(repos, mrs_by_repo=mrs_by_repo, quick=quick)
         if output:
             with open(output, "w") as f:
                 f.write(html)

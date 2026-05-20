@@ -107,6 +107,7 @@ def _mr_count_since(mrs: list[MergeRequestData], days: int) -> int:
 def _build_charts(
     repos: list[RepoRecord],
     mrs_by_repo: dict[int, list[MergeRequestData]],
+    quick: bool = False,
 ) -> list[dict]:
     """Build Plotly chart HTML fragments."""
     # Red Hat / PatternFly palette
@@ -170,43 +171,44 @@ def _build_charts(
     fig.update_layout(title="Repository Types", height=350, margin=dict(t=40, b=20, l=20, r=20), **dark_layout)
     charts.append({"html": fig.to_html(full_html=False, include_plotlyjs=False), "full_width": False})
 
-    # Activity timeline
-    active_repos = [r for r in repos if r.last_commit_date and not r.archived]
-    fig = go.Figure()
-    vis_colors = [("public", rh_green), ("internal", rh_orange), ("private", rh_red)]
-    for visibility, color in vis_colors:
-        subset = [r for r in active_repos if r.visibility == visibility]
-        if not subset:
-            continue
-        fig.add_trace(go.Scatter(
-            x=[r.last_commit_date for r in subset],
-            y=[r.open_mr_count or 0 for r in subset],
-            mode="markers", name=visibility,
-            marker=dict(color=color, size=[(r.repo_size_kb or 100) ** 0.3 * 3 for r in subset], sizemin=5),
-            text=[f"{r.name}<br>{r.path}" for r in subset],
-            hovertemplate="%{text}<br>Last commit: %{x}<br>Open MRs: %{y}<extra></extra>",
-        ))
-    fig.update_layout(
-        title="Activity Timeline (non-archived repos)", xaxis_title="Last commit date",
-        yaxis_title="Open merge requests", height=400, margin=dict(t=40, b=40, l=50, r=20), **dark_layout,
-    )
-    charts.append({"html": fig.to_html(full_html=False, include_plotlyjs=False), "full_width": True})
+    if not quick:
+        # Activity timeline
+        active_repos = [r for r in repos if r.last_commit_date and not r.archived]
+        fig = go.Figure()
+        vis_colors = [("public", rh_green), ("internal", rh_orange), ("private", rh_red)]
+        for visibility, color in vis_colors:
+            subset = [r for r in active_repos if r.visibility == visibility]
+            if not subset:
+                continue
+            fig.add_trace(go.Scatter(
+                x=[r.last_commit_date for r in subset],
+                y=[r.open_mr_count or 0 for r in subset],
+                mode="markers", name=visibility,
+                marker=dict(color=color, size=[(r.repo_size_kb or 100) ** 0.3 * 3 for r in subset], sizemin=5),
+                text=[f"{r.name}<br>{r.path}" for r in subset],
+                hovertemplate="%{text}<br>Last commit: %{x}<br>Open MRs: %{y}<extra></extra>",
+            ))
+        fig.update_layout(
+            title="Activity Timeline (non-archived repos)", xaxis_title="Last commit date",
+            yaxis_title="Open merge requests", height=400, margin=dict(t=40, b=40, l=50, r=20), **dark_layout,
+        )
+        charts.append({"html": fig.to_html(full_html=False, include_plotlyjs=False), "full_width": True})
 
-    # MR activity per repo
-    non_archived = [r for r in repos if not r.archived]
-    mr_repos = sorted(non_archived, key=lambda r: _mr_count_since(mrs_by_repo.get(r.project_id, []), 90), reverse=True)
+        # MR activity per repo
+        non_archived = [r for r in repos if not r.archived]
+        mr_repos = sorted(non_archived, key=lambda r: _mr_count_since(mrs_by_repo.get(r.project_id, []), 90), reverse=True)
 
-    fig = go.Figure(data=[go.Bar(
-        x=[_mr_count_since(mrs_by_repo.get(r.project_id, []), 90) for r in mr_repos],
-        y=[r.name for r in mr_repos],
-        orientation="h", marker_color=rh_blue,
-    )])
-    fig.update_layout(
-        title="Merge Requests per Repo (last 90 days)", xaxis_title="MRs created",
-        height=max(300, len(mr_repos) * 28 + 80), margin=dict(t=40, b=40, l=200, r=20),
-        yaxis=dict(autorange="reversed"), **dark_layout,
-    )
-    charts.append({"html": fig.to_html(full_html=False, include_plotlyjs=False), "full_width": True})
+        fig = go.Figure(data=[go.Bar(
+            x=[_mr_count_since(mrs_by_repo.get(r.project_id, []), 90) for r in mr_repos],
+            y=[r.name for r in mr_repos],
+            orientation="h", marker_color=rh_blue,
+        )])
+        fig.update_layout(
+            title="Merge Requests per Repo (last 90 days)", xaxis_title="MRs created",
+            height=max(300, len(mr_repos) * 28 + 80), margin=dict(t=40, b=40, l=200, r=20),
+            yaxis=dict(autorange="reversed"), **dark_layout,
+        )
+        charts.append({"html": fig.to_html(full_html=False, include_plotlyjs=False), "full_width": True})
 
     return charts
 
@@ -265,9 +267,13 @@ def generate_csv(
         writer.writerow({k: row.get(k, "") for k in CSV_COLUMNS})
 
 
+ENRICHMENT_COLUMNS = {"Last Commit", "Open MRs", "MRs (90d)", "CI", "Language", "Size (KB)", "Contributors (90d)"}
+
+
 def generate_html(
     repos: list[RepoRecord],
     mrs_by_repo: dict[int, list[MergeRequestData]] | None = None,
+    quick: bool = False,
 ) -> str:
     """Generate a self-contained HTML report with Plotly charts."""
     if mrs_by_repo is None:
@@ -281,11 +287,16 @@ def generate_html(
         {"value": sum(1 for r in code_repos if _days_since(r.last_activity_at) is not None and _days_since(r.last_activity_at) < 90), "label": "Active code (90d)"},  # type: ignore[operator]
         {"value": sum(1 for r in code_repos if _days_since(r.last_activity_at) is not None and _days_since(r.last_activity_at) >= 365), "label": "Stale code (>1y)"},  # type: ignore[operator]
         {"value": sum(1 for r in repos if r.archived), "label": "Archived"},
-        {"value": sum(_mr_count_since(mrs_by_repo.get(r.project_id, []), 90) for r in repos), "label": "MRs (90d)"},
     ]
+    if not quick:
+        stats.append({"value": sum(_mr_count_since(mrs_by_repo.get(r.project_id, []), 90) for r in repos), "label": "MRs (90d)"})
 
-    charts = _build_charts(repos, mrs_by_repo)
+    charts = _build_charts(repos, mrs_by_repo, quick=quick)
     rows = _build_rows(repos, mrs_by_repo)
+
+    columns = COLUMNS
+    if quick:
+        columns = [c for c in COLUMNS if c["label"] not in ENRICHMENT_COLUMNS]
 
     env = jinja2.Environment(
         loader=jinja2.FileSystemLoader(str(TEMPLATE_DIR)),
@@ -295,7 +306,8 @@ def generate_html(
     return template.render(
         stats=stats,
         charts=charts,
-        columns=COLUMNS,
+        columns=columns,
         rows=rows,
         generated_at=now.strftime("%Y-%m-%d %H:%M UTC"),
+        quick=quick,
     )

@@ -101,6 +101,7 @@ tr.stale td { color: var(--pf-t--global--color--status--danger--default); }
   <td><a href="{{ row.web_url }}">{{ row.name }}</a></td>
   <td>{{ row.visibility }}</td>
   <td data-sort="{{ row.last_activity_sort }}">{{ row.last_activity }}</td>
+  {% if not quick %}
   <td data-sort="{{ row.last_commit_sort }}">{{ row.last_commit }}</td>
   <td>{{ row.open_mr_count }}</td>
   <td>{{ row.mrs_90d }}</td>
@@ -108,6 +109,7 @@ tr.stale td { color: var(--pf-t--global--color--status--danger--default); }
   <td>{{ row.language }}</td>
   <td>{{ row.repo_size_kb }}</td>
   <td>{{ row.contributors_90d }}</td>
+  {% endif %}
   <td>{{ row.repo_type }}</td>
   <td>{{ row.disposition }}</td>
   <td>{{ row.destination_org }}</td>
