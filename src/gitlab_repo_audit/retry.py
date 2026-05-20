@@ -31,10 +31,16 @@ def retry_on_error(
                     if getattr(e, "response_code", None) not in RETRYABLE_HTTP_CODES:
                         raise
                     if attempt >= max_retries:
-                        logger.error("HTTP %s after %d attempts: %s", e.response_code, max_retries + 1, e)
+                        logger.error(
+                            "HTTP %s after %d attempts: %s",
+                            e.response_code, max_retries + 1, e,
+                        )
                         raise
                     delay = min(base_delay * (2**attempt), max_delay)
-                    logger.warning("HTTP %s (attempt %d/%d): %s", e.response_code, attempt + 1, max_retries + 1, e)
+                    logger.warning(
+                        "HTTP %s (attempt %d/%d): %s",
+                        e.response_code, attempt + 1, max_retries + 1, e,
+                    )
                     time.sleep(delay)
                 except (
                     requests.exceptions.ChunkedEncodingError,
@@ -42,10 +48,16 @@ def retry_on_error(
                     requests.exceptions.Timeout,
                 ) as e:
                     if attempt >= max_retries:
-                        logger.error("Network error after %d attempts: %s", max_retries + 1, e)
+                        logger.error(
+                            "Network error after %d attempts: %s",
+                            max_retries + 1, e,
+                        )
                         raise
                     delay = min(base_delay * (2**attempt), max_delay)
-                    logger.warning("Network error (attempt %d/%d): %s", attempt + 1, max_retries + 1, e)
+                    logger.warning(
+                        "Network error (attempt %d/%d): %s",
+                        attempt + 1, max_retries + 1, e,
+                    )
                     time.sleep(delay)
             raise RuntimeError("Unexpected retry loop exit")
 

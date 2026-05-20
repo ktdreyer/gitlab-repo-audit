@@ -13,7 +13,7 @@ body { margin: 0; padding: 24px; font-family: var(--pf-t--global--font--family--
 
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 16px;
   margin: 24px 0;
 }
@@ -43,6 +43,21 @@ body { margin: 0; padding: 24px; font-family: var(--pf-t--global--font--family--
 .pf-v6-c-table th[data-sortable]:hover { opacity: 0.8; }
 tr.archived td { opacity: 0.5; }
 tr.stale td { color: var(--pf-t--global--color--status--danger--default); }
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+.filter-label {
+  font-size: 0.875rem;
+  color: var(--pf-t--global--text--color--subtle);
+}
+#filter-status {
+  font-size: 0.875rem;
+  color: var(--pf-t--global--text--color--subtle);
+}
 
 .generated {
   color: var(--pf-t--global--text--color--subtle);
@@ -83,8 +98,12 @@ tr.stale td { color: var(--pf-t--global--color--status--danger--default); }
   {% endfor %}
 </div>
 
-<div class="pf-v6-c-content" style="margin-top: 24px;">
-  <h2>Repository Details</h2>
+<div class="filter-bar">
+  <div class="pf-v6-c-content">
+    <h2 style="margin: 0;">Repository Details</h2>
+  </div>
+  <button class="pf-v6-c-button pf-m-secondary pf-m-small" id="show-all-btn" style="display: none;" onclick="showAll()">Show all</button>
+  <span id="filter-status"></span>
 </div>
 
 <table class="pf-v6-c-table pf-m-compact" id="repo-table">
@@ -97,22 +116,11 @@ tr.stale td { color: var(--pf-t--global--color--status--danger--default); }
 </thead>
 <tbody>
 {% for row in rows %}
-<tr class="{{ row.css_class }}">
+<tr class="{{ row.css_class }}" data-repo-type="{{ row.repo_type_key }}" data-subgroup="{{ row.subgroup }}">
   <td><a href="{{ row.web_url }}">{{ row.name }}</a></td>
   <td>{{ row.visibility }}</td>
   <td data-sort="{{ row.last_activity_sort }}">{{ row.last_activity }}</td>
-  {% if not quick %}
-  <td data-sort="{{ row.last_commit_sort }}">{{ row.last_commit }}</td>
-  <td>{{ row.open_mr_count }}</td>
-  <td>{{ row.mrs_90d }}</td>
-  <td>{{ row.ci }}</td>
-  <td>{{ row.language }}</td>
-  <td>{{ row.repo_size_kb }}</td>
-  <td>{{ row.contributors_90d }}</td>
-  {% endif %}
   <td>{{ row.repo_type }}</td>
-  <td>{{ row.disposition }}</td>
-  <td>{{ row.destination_org }}</td>
 </tr>
 {% endfor %}
 </tbody>
@@ -134,6 +142,55 @@ function sortTable(col) {
     return dir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
   });
   rows.forEach(r => tbody.appendChild(r));
+}
+
+function filterTable(repoType, subgroup) {
+  const tbody = document.getElementById("repo-table").tBodies[0];
+  const rows = Array.from(tbody.rows);
+  let shown = 0;
+  rows.forEach(row => {
+    const rowType = row.dataset.repoType;
+    const rowSubgroup = row.dataset.subgroup;
+    let match = true;
+    if (repoType) match = match && rowType === repoType;
+    if (subgroup) match = match && rowSubgroup === subgroup;
+    row.style.display = match ? "" : "none";
+    if (match) shown++;
+  });
+  document.getElementById("show-all-btn").style.display = "inline-block";
+  const label = subgroup ? subgroup + " (" + repoType + ")" : repoType;
+  document.getElementById("filter-status").textContent = "Showing " + shown + " repos: " + label;
+}
+
+function showAll() {
+  const tbody = document.getElementById("repo-table").tBodies[0];
+  Array.from(tbody.rows).forEach(row => row.style.display = "");
+  document.getElementById("show-all-btn").style.display = "none";
+  document.getElementById("filter-status").textContent = "";
+}
+
+// Wire up sunburst click-to-filter
+const sunburstDiv = document.getElementById("sunburst-chart");
+if (sunburstDiv) {
+  sunburstDiv.on("plotly_sunburstclick", function(data) {
+    const point = data.points[0];
+    if (!point || !point.id || point.id === "") {
+      showAll();
+      return;
+    }
+    const customdata = point.customdata;
+    if (!customdata) {
+      showAll();
+      return;
+    }
+    const repoType = customdata[0];
+    const subgroup = customdata[1];
+    if (!repoType) {
+      showAll();
+      return;
+    }
+    filterTable(repoType, subgroup || null);
+  });
 }
 </script>
 

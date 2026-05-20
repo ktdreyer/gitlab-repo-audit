@@ -5,7 +5,6 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import TextIO
 
 import click
 import gitlab
@@ -51,32 +50,33 @@ def cli() -> None:
 @cli.command()
 @click.argument("group_path")
 @click.option("--token", "-t", default=None, help="GitLab API token (defaults to GITLAB_TOKEN)")
-@click.option("--url", "-u", default="https://gitlab.com", show_default=True, help="GitLab instance URL")
-@click.option("--db", "db_path", default=None, help="SQLite database path (defaults to ~/.cache/gitlab-repo-audit/repos.db)")
-@click.option("--workers", "-w", type=int, default=5, show_default=True, help="Parallel workers for API calls")
+@click.option(
+    "--url", "-u", default="https://gitlab.com",
+    show_default=True, help="GitLab instance URL",
+)
+@click.option(
+    "--db", "db_path", default=None,
+    help="SQLite database path (defaults to ~/.cache/gitlab-repo-audit/repos.db)",
+)
 @click.option("--verbose", "-v", is_flag=True, help="Debug output")
 @click.option("--quiet", "-q", is_flag=True, help="Quiet mode")
-@click.option("--quick", is_flag=True, help="Fast stub-only index (skip per-project API calls)")
 def index(
     group_path: str,
     token: str | None,
     url: str,
     db_path: str | None,
-    workers: int,
     verbose: bool,
     quiet: bool,
-    quick: bool,
 ) -> None:
     """Index all repositories in a GitLab group into SQLite.
 
-    GROUP_PATH is the full path to a GitLab group (e.g. 'redhat/rhel-ai/ci-cd').
+    GROUP_PATH is the full path to a GitLab group (e.g. 'redhat/rhel-ai').
     Projects are discovered recursively across all subgroups.
 
     \b
     Examples:
+        gitlab-repo-audit index redhat/rhel-ai
         gitlab-repo-audit index redhat/rhel-ai/ci-cd
-        gitlab-repo-audit index redhat/rhel-ai --workers 10
-        gitlab-repo-audit index redhat/rhel-ai --quick
     """
     try:
         configure_logging(verbose, quiet)
@@ -90,20 +90,18 @@ def index(
         start = time.monotonic()
 
         group_path = group_path.strip("/")
-        results = index_group(gl, group_path, max_workers=workers, quiet=quiet, quick=quick)
+        repos = index_group(gl, group_path, quiet=quiet)
 
-        for repo, mrs in results:
+        for repo in repos:
             db.upsert(repo)
-            db.upsert_mrs(mrs)
 
         db.close()
         elapsed = time.monotonic() - start
         minutes, seconds = divmod(int(elapsed), 60)
 
         if not quiet:
-            total_mrs = sum(len(mrs) for _, mrs in results)
             click.echo(
-                f"Indexed {len(results)} repos ({total_mrs} MRs) from {group_path} in {minutes}m {seconds}s. "
+                f"Indexed {len(repos)} repos from {group_path} in {minutes}m {seconds}s. "
                 f"Database: {db_path}",
                 err=True,
             )
@@ -119,7 +117,10 @@ def index(
 @cli.command()
 @click.option("--db", "db_path", default=None, help="SQLite database path")
 @click.option("--group", "group_path", default=None, help="Filter by group path")
-@click.option("-o", "--output", type=click.Path(), default=None, help="Output file (HTML or CSV by extension, default: stdout HTML)")
+@click.option(
+    "-o", "--output", type=click.Path(), default=None,
+    help="Output file (HTML or CSV by extension, default: stdout HTML)",
+)
 @click.option("--verbose", "-v", is_flag=True, help="Debug output")
 @click.option("--quiet", "-q", is_flag=True, help="Quiet mode")
 def report(
@@ -138,7 +139,7 @@ def report(
     \b
     Examples:
         gitlab-repo-audit report -o repos.html
-        gitlab-repo-audit report -o repos.csv --group redhat/rhel-ai/ci-cd
+        gitlab-repo-audit report -o repos.csv --group redhat/rhel-ai
     """
     configure_logging(verbose, quiet)
 
@@ -152,20 +153,20 @@ def report(
 
     db = RepoDB(db_path)
     repos = db.get_all(group_path=group_path)
-    mrs_by_repo = {r.project_id: db.get_mrs(r.project_id) for r in repos}
     db.close()
 
     if not repos:
-        raise click.ClickException("No repos found in database. Run 'gitlab-repo-audit index' first.")
+        raise click.ClickException(
+            "No repos found in database. Run 'gitlab-repo-audit index' first."
+        )
 
     if output and output.endswith(".csv"):
         with open(output, "w", newline="") as f:
-            generate_csv(repos, f, mrs_by_repo=mrs_by_repo)
+            generate_csv(repos, f)
         if not quiet:
             click.echo(f"CSV report written to {output} ({len(repos)} repos)", err=True)
     else:
-        quick = all(r.ci_config_present is None for r in repos)
-        html = generate_html(repos, mrs_by_repo=mrs_by_repo, quick=quick)
+        html = generate_html(repos)
         if output:
             with open(output, "w") as f:
                 f.write(html)
