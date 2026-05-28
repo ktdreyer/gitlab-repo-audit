@@ -1,9 +1,15 @@
 """GitLab API data collection for repository indexing."""
 
+from __future__ import annotations
+
 import logging
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 import gitlab
+
+if TYPE_CHECKING:
+    from gitlab.v4.objects import GroupProject
 
 from .models import RepoData
 
@@ -25,7 +31,7 @@ def classify_repo_type(path: str, archived: bool) -> str:
 
 
 def _stub_to_repo(
-    stub: gitlab.v4.objects.GroupProject, group_path: str
+    stub: GroupProject, group_path: str
 ) -> RepoData:
     """Convert a group project stub to a RepoData without extra API calls."""
     last_activity = None
