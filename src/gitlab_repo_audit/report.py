@@ -1,6 +1,7 @@
 """Report generation: HTML with Plotly charts and CSV export."""
 
 import csv
+import subprocess
 from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -12,6 +13,7 @@ import plotly.graph_objects as go
 from .models import RepoData
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
+REPO_URL = "https://github.com/ktdreyer/gitlab-repo-audit"
 
 CSV_COLUMNS = [
     "name",
@@ -44,6 +46,19 @@ REPO_TYPE_LABELS = {
 }
 
 REPO_TYPE_KEYS = {v: k for k, v in REPO_TYPE_LABELS.items()}
+
+
+def _get_commit_sha() -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    return None
 
 
 def _days_since(dt: datetime | None) -> int | None:
@@ -279,4 +294,6 @@ def generate_html(repos: list[RepoData]) -> str:
         columns=COLUMNS,
         rows=rows,
         generated_at=now.strftime("%Y-%m-%d %H:%M UTC"),
+        repo_url=REPO_URL,
+        commit_sha=_get_commit_sha(),
     )

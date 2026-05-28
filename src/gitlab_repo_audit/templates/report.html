@@ -194,7 +194,7 @@ if (sunburstDiv) {
 }
 </script>
 
-<p class="generated">Generated {{ generated_at }} by gitlab-repo-audit</p>
+<p class="generated">Generated {{ generated_at }} by <a href="{{ repo_url }}">gitlab-repo-audit</a>{% if commit_sha %} (<a href="{{ repo_url }}/commit/{{ commit_sha }}">{{ commit_sha }}</a>){% endif %}</p>
 
 </div>
 </body>
