@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -15,6 +16,10 @@ from .models import RepoData
 
 logger = logging.getLogger(__name__)
 
+# Repos under wheels/ that store packages but don't follow the
+# standard variant-ubi9-arch naming convention.
+WHEEL_STORAGE_REPOS = ("upstream-sdists", "prefetch")
+
 
 def classify_repo_type(path: str, archived: bool) -> str:
     """Classify a repo by its path and archived status."""
@@ -24,7 +29,13 @@ def classify_repo_type(path: str, archived: bool) -> str:
     if "indexes" in segments:
         return "pypi_index"
     if "wheels" in segments:
-        return "wheel_cache"
+        leaf = segments[-1]
+        if re.search(r"-ubi\d+", leaf):
+            return "wheel_cache"
+        if "mirror" in leaf:
+            return "mirror"
+        if leaf in WHEEL_STORAGE_REPOS:
+            return "wheel_cache"
     if "mirrors" in segments:
         return "mirror"
     return "code"

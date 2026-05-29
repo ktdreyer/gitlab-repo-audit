@@ -72,7 +72,9 @@ Each repo is classified by its path segments and archived status:
 |---|---|
 | `archived == True` | `archived` |
 | Path contains `/indexes/` | `pypi_index` |
-| Path contains `/wheels/` | `wheel_cache` |
+| Path contains `/wheels/` and last segment matches `-ubi\d+` | `wheel_cache` |
+| Path contains `/wheels/` and last segment contains `mirror` | `mirror` |
+| Path contains `/wheels/` and last segment is `upstream-sdists` or `prefetch` | `wheel_cache` |
 | Path contains `/mirrors/` | `mirror` |
 | Everything else | `code` |
 

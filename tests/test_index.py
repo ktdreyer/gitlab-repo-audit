@@ -67,3 +67,31 @@ def test_classify_repo_type_mirror():
 
 def test_classify_repo_type_archived_overrides_path():
     assert classify_repo_type("redhat/rhel-ai/rhai/indexes/old-thing", True) == "archived"
+
+
+def test_classify_repo_type_wheels_builder_is_code():
+    assert classify_repo_type("redhat/rhel-ai/wheels/builder", False) == "code"
+
+
+def test_classify_repo_type_wheels_pipeline_is_code():
+    assert classify_repo_type("redhat/rhel-ai/core/wheels/pipeline", False) == "code"
+
+
+def test_classify_repo_type_wheels_build_repo_is_code():
+    assert classify_repo_type("redhat/rhel-ai/wheels/tpu-wheel-build", False) == "code"
+
+
+def test_classify_repo_type_wheels_mirror_is_mirror():
+    assert classify_repo_type("redhat/rhel-ai/wheels/gaudi-mirror", False) == "mirror"
+
+
+def test_classify_repo_type_wheels_mirrored_is_mirror():
+    assert classify_repo_type("redhat/rhel-ai/wheels/tpu-mirrored-wheels", False) == "mirror"
+
+
+def test_classify_repo_type_wheels_upstream_sdists():
+    assert classify_repo_type("redhat/rhel-ai/core/wheels/upstream-sdists", False) == "wheel_cache"
+
+
+def test_classify_repo_type_wheels_prefetch():
+    assert classify_repo_type("redhat/rhel-ai/wheels/prefetch", False) == "wheel_cache"
