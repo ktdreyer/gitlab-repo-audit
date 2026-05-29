@@ -275,8 +275,8 @@ def generate_html(repos: list[RepoData]) -> str:
     stats = [
         {"value": len(repos), "label": "Total repos"},
         {"value": len(code_repos), "label": "Code repos"},
-        {"value": active, "label": "Active code (90d)"},
-        {"value": stale, "label": "Stale code (>1y)"},
+        {"value": active, "label": "Active code (90d)*"},
+        {"value": stale, "label": "Stale code (>1y)*"},
         {"value": sum(1 for r in repos if r.archived), "label": "Archived"},
     ]
 

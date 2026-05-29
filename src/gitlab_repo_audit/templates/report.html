@@ -59,6 +59,11 @@ tr.stale td { color: var(--pf-t--global--color--status--danger--default); }
   color: var(--pf-t--global--text--color--subtle);
 }
 
+.footnote {
+  color: var(--pf-t--global--text--color--subtle);
+  font-size: 0.75rem;
+  margin: 4px 0 0 0;
+}
 .generated {
   color: var(--pf-t--global--text--color--subtle);
   margin-top: 48px;
@@ -89,6 +94,7 @@ tr.stale td { color: var(--pf-t--global--color--status--danger--default); }
   </div>
   {% endfor %}
 </div>
+<p class="footnote">* Based on GitLab's last_activity_at, which includes CI pipelines, bot pushes, and mirror syncs — not just human commits.</p>
 
 <div class="chart-grid">
   {% for chart in charts %}
