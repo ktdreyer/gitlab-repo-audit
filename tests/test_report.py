@@ -97,6 +97,22 @@ def test_html_filter_attributes():
     assert "data-subgroup=" in html
 
 
+def test_html_deploy_url(monkeypatch):
+    monkeypatch.setenv("CI_PROJECT_URL", "https://gitlab.example.com/team/my-report")
+    repos = [_make_repo()]
+    html = generate_html(repos)
+    assert "Deployed from" in html
+    assert "https://gitlab.example.com/team/my-report" in html
+    assert "my-report</a>" in html
+
+
+def test_html_no_deploy_url(monkeypatch):
+    monkeypatch.delenv("CI_PROJECT_URL", raising=False)
+    repos = [_make_repo()]
+    html = generate_html(repos)
+    assert "Deployed from" not in html
+
+
 def test_extract_subgroup_pypi_index():
     assert extract_subgroup(
         "redhat/rhel-ai/rhai/indexes/vllm-2.20/cuda", "pypi_index", "redhat/rhel-ai"

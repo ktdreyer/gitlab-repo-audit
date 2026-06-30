@@ -1,6 +1,7 @@
 """Report generation: HTML with Plotly charts and CSV export."""
 
 import csv
+import os
 import subprocess
 from collections import defaultdict
 from datetime import UTC, datetime
@@ -291,4 +292,5 @@ def generate_html(repos: list[RepoData]) -> str:
         generated_at=now.strftime("%Y-%m-%d %H:%M UTC"),
         repo_url=REPO_URL,
         commit_sha=_get_commit_sha(),
+        deploy_url=os.environ.get("CI_PROJECT_URL"),
     )
