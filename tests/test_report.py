@@ -115,6 +115,12 @@ def test_extract_subgroup_mirror():
     ) == "github"
 
 
+def test_extract_subgroup_mirror_without_mirrors_segment():
+    assert extract_subgroup(
+        "redhat/rhel-ai/core/wheels/upstream-mirror", "mirror", "redhat/rhel-ai"
+    ) == "core"
+
+
 def test_extract_subgroup_code():
     assert extract_subgroup(
         "redhat/rhel-ai/core/some-tool", "code", "redhat/rhel-ai"

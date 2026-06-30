@@ -89,14 +89,9 @@ def _repo_type_label(repo: RepoData) -> str:
 def extract_subgroup(path: str, repo_type: str, group_path: str) -> str:
     """Extract the subgroup segment from a repo path for the sunburst chart."""
     segments = path.split("/")
-    if repo_type == "pypi_index":
-        idx = segments.index("indexes")
-        return segments[idx + 1] if idx + 1 < len(segments) else "other"
-    if repo_type == "wheel_cache":
-        idx = segments.index("wheels")
-        return segments[idx + 1] if idx + 1 < len(segments) else "other"
-    if repo_type == "mirror":
-        idx = segments.index("mirrors")
+    marker = {"pypi_index": "indexes", "wheel_cache": "wheels", "mirror": "mirrors"}
+    if repo_type in marker and marker[repo_type] in segments:
+        idx = segments.index(marker[repo_type])
         return segments[idx + 1] if idx + 1 < len(segments) else "other"
     prefix_len = len(group_path.split("/"))
     return segments[prefix_len] if prefix_len < len(segments) else "other"
